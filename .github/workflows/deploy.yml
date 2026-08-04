@@ -38,9 +38,11 @@ jobs:
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
-        with:
-          # Create the Pages site (source: GitHub Actions) on first run
-          enablement: true
+        # No `enablement: true` — creating a Pages site needs a token scope the
+        # default GITHUB_TOKEN doesn't have, so it fails the job rather than
+        # bootstrapping anything. Enable Pages once in
+        # Settings → Pages → Source: GitHub Actions; this step then just reads
+        # the site's base path.
 
       - name: Build
         env:
