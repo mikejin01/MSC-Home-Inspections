@@ -70,7 +70,7 @@ export const HERO = {
 	lead: 'We help identify hidden issues early so you can make informed decisions about your home.',
 	script: 'Protecting What Matters Most.',
 	photo: `${IMG}/home-exterior.jpg`,
-	photoAlt: 'A well-kept two-storey home lit from within at dusk'
+	photoAlt: 'A timber-and-glass home lit from within against a deep blue twilight sky'
 };
 
 /* ------------------------------------------------------------- trust strip */
@@ -83,7 +83,9 @@ export const TRUST = {
 };
 
 /* ---------------------------------------------------------------- services */
-// The five pillars from the flyer, with the flyer's own descriptions.
+// The five pillars from the flyer, with the flyer's own descriptions, plus pool
+// inspections — confirmed by the business after the flyer was printed, so it is
+// presented as an additional service rather than a sixth flyer pillar.
 // The hedged wording ("signs of", "visible", "may affect", "referrals for") is
 // deliberate and load-bearing: MSC inspects and identifies, it does not test,
 // diagnose, or remediate. Do not let marketing copy drift past that line.
@@ -91,7 +93,7 @@ export const TRUST = {
 export const SERVICES = {
 	eyebrow: 'What We Do',
 	title: 'What We Look For',
-	lead: 'Five areas where small, easy-to-miss problems turn into expensive ones — and where a careful look pays for itself.',
+	lead: 'Five areas where small, easy-to-miss problems turn into expensive ones — and where a careful look pays for itself. We inspect pools, too.',
 	cards: [
 		{
 			id: 'moisture',
@@ -99,7 +101,7 @@ export const SERVICES = {
 			title: 'Moisture Intrusion Detection',
 			body: 'We identify signs of moisture intrusion before they lead to bigger problems.',
 			img: `${IMG}/service-1.jpg`,
-			alt: 'Dark mould staining spreading across a ceiling corner',
+			alt: 'Dark damp staining and mould streaking down a pale interior wall',
 			span: 'wide'
 		},
 		{
@@ -108,7 +110,7 @@ export const SERVICES = {
 			title: 'Water Damage Inspections',
 			body: 'We assess visible water damage and help you understand the potential impact.',
 			img: `${IMG}/service-2.jpg`,
-			alt: 'A collapsed, water-damaged ceiling exposing the joists above',
+			alt: 'A water-damaged ceiling fallen away to expose the lath above',
 			span: 'wide'
 		},
 		{
@@ -117,7 +119,7 @@ export const SERVICES = {
 			title: 'Attic & Crawl Space Evaluations',
 			body: 'We check these often-overlooked areas for issues that could affect your home.',
 			img: `${IMG}/service-3.jpg`,
-			alt: 'The inside of an attic with exposed rafters and insulation'
+			alt: 'An attic interior with exposed timber rafters and a boarded floor'
 		},
 		{
 			id: 'air-quality',
@@ -125,7 +127,7 @@ export const SERVICES = {
 			title: 'Indoor Air Quality Concerns',
 			body: 'We look for conditions that may affect indoor air quality in your home.',
 			img: `${IMG}/service-4.jpg`,
-			alt: 'A crawl space lined with a plastic vapour barrier'
+			alt: 'Paint blistered and lifting away from a damp interior wall'
 		},
 		{
 			id: 'referrals',
@@ -133,7 +135,20 @@ export const SERVICES = {
 			title: 'Referrals When Needed',
 			body: 'When appropriate, we provide referrals for mold testing or remediation professionals.',
 			img: `${IMG}/service-5.jpg`,
-			alt: 'A gloved hand holding a petri dish with mould cultures'
+			alt: 'A laboratory technician in gloves pipetting a sample into a rack of tubes'
+		},
+		{
+			// Not on the flyer — added at the business's request. Rendered as the
+			// full-width feature tile under the five pillars, which keeps the
+			// flyer's 2-wide-over-3-narrow rhythm intact and still gives the
+			// newest service its own moment.
+			id: 'pool',
+			icon: 'pool',
+			title: 'Pool Inspections',
+			body: 'Have a pool? We inspect what can be seen — the shell and surround, the barrier and gates, and the visible condition of the pump, filter, and heater.',
+			img: `${IMG}/service-pool.jpg`,
+			alt: 'Sunlight rippling across the clear turquoise water of a swimming pool',
+			span: 'feature'
 		}
 	]
 };
@@ -147,8 +162,8 @@ export const ABOUT = {
 	title: 'One inspector. Every inspection.',
 	body: `MSC Home Inspections is owner-operated, so the person who walks your home is the person who writes your report. No rotating crews, no rushed walkthroughs — just a careful look at the places problems actually start.`,
 	body2: `We pay particular attention to moisture, water damage, attics and crawl spaces: the areas most often skipped, and the ones most likely to cost you later.`,
-	photo: `${IMG}/inspector.jpg`,
-	photoAlt: 'The MSC Home Inspections inspector in a branded polo shirt',
+	photo: `${IMG}/inspector-hq.png`,
+	photoAlt: 'The MSC Home Inspections inspector, in a branded MSC polo shirt',
 	stats: [
 		{ value: '5', label: 'focus areas on every inspection' },
 		{ value: 'NJ', label: 'serving the New Jersey area' }
@@ -209,6 +224,13 @@ export const FAQS = {
 			a: `Yes. They are two of the most commonly skipped areas in a home inspection and two of the most revealing. Ventilation problems, insulation gaps, pest activity, standing water, and failing vapour barriers all tend to show up there first.`
 		},
 		{
+			q: 'Do you inspect swimming pools?',
+			a: `Yes. Alongside the home itself we inspect the pool: the visible condition of the shell or liner, the deck and surround, the barrier, gates and latches, and the visible condition of the pump, filter, and heater. As everywhere else, this is a visual inspection — we do not test water chemistry, carry out leak detection, or service equipment. Where something needs a specialist, we say so and can refer you on.`
+			// TODO: confirm with the business — in-ground only or above-ground
+			// too, whether spas and hot tubs are included, and whether the pool
+			// inspection is part of the standard fee or priced as an add-on.
+		},
+		{
 			q: 'Can I be there during the inspection?',
 			a: `You are welcome to walk along. Seeing a concern in person — and being able to ask about it on the spot — usually makes the written report far easier to act on.`
 			// TODO: confirm with the business.
@@ -240,13 +262,14 @@ export const REASONS = [
 	'Moisture or water concern',
 	'Attic or crawl space concern',
 	'Indoor air quality concern',
+	'Pool inspection',
 	'General inspection'
 ];
 
 /* ------------------------------------------------------------------ footer */
 
 export const FOOTER = {
-	blurb: 'Thorough home inspections across the New Jersey area — helping you identify hidden issues early so you can make informed decisions about your home.',
+	blurb: 'Thorough home and pool inspections across the New Jersey area — helping you identify hidden issues early so you can make informed decisions about your home.',
 	columns: [
 		{
 			label: 'Inspections',
@@ -254,7 +277,8 @@ export const FOOTER = {
 				{ label: 'Moisture Intrusion', href: '#services' },
 				{ label: 'Water Damage', href: '#services' },
 				{ label: 'Attic & Crawl Space', href: '#services' },
-				{ label: 'Indoor Air Quality', href: '#services' }
+				{ label: 'Indoor Air Quality', href: '#services' },
+				{ label: 'Pool Inspections', href: '#services' }
 			]
 		},
 		{

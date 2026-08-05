@@ -105,7 +105,7 @@
 
 			<!-- tall photo tile -->
 			<figure class="bt-tile bt-hero-photo">
-				<img src={HERO.photo} alt={HERO.photoAlt} width="813" height="1591" fetchpriority="high" />
+				<img src={HERO.photo} alt={HERO.photoAlt} width="1800" height="1200" fetchpriority="high" />
 				<figcaption class="bt-photo-badge">
 					<Icon name="pin" size={15} />
 					Serving {CONTACT.serviceArea}
@@ -157,7 +157,12 @@
 
 			<div class="bt-services">
 				{#each SERVICES.cards as s}
-					<article class="bt-svc" class:wide={s.span === 'wide'} id={s.id}>
+					<article
+						class="bt-svc"
+						class:wide={s.span === 'wide'}
+						class:feature={s.span === 'feature'}
+						id={s.id}
+					>
 						<img class="bt-svc-bg" src={s.img} alt={s.alt} loading="lazy" />
 						<div class="bt-svc-overlay">
 							<span class="bt-badge"><Icon name={s.icon} size={22} /></span>
@@ -178,7 +183,7 @@
 
 			<div class="bt-about">
 				<figure class="bt-tile bt-about-photo">
-					<img src={ABOUT.photo} alt={ABOUT.photoAlt} width="688" height="1363" loading="lazy" />
+					<img src={ABOUT.photo} alt={ABOUT.photoAlt} width="469" height="558" loading="lazy" />
 				</figure>
 
 				<div class="bt-tile bt-about-copy">
@@ -807,7 +812,10 @@
 	}
 
 	/* ======================================================================
-	   SERVICES — two wide tiles over three narrow ones
+	   SERVICES — two wide tiles over three narrow ones, then the pool tile
+	   full-width beneath. Every row totals exactly 6 columns (3+3, 2+2+2, 6),
+	   so the flyer's five pillars keep their rhythm and the newest service
+	   gets its own banner rather than orphaning a half-empty row.
 	   ====================================================================== */
 	.bt-services {
 		display: grid;
@@ -828,6 +836,10 @@
 	.bt-svc.wide {
 		grid-column: span 3;
 		min-height: 420px;
+	}
+	.bt-svc.feature {
+		grid-column: span 6;
+		min-height: 340px;
 	}
 	.bt-svc:hover {
 		transform: translateY(-3px);
@@ -875,6 +887,12 @@
 		color: rgba(255, 255, 255, 0.86);
 		max-width: 40ch;
 	}
+	/* the feature tile is ~3.5× wider than it is tall, so the 40ch column that
+	   suits a narrow card would stack into four lines against a lot of empty
+	   photo — let it run wide enough to read as a banner line */
+	.bt-svc.feature .bt-svc-body {
+		max-width: 64ch;
+	}
 
 	/* ======================================================================
 	   ABOUT — tall portrait beside a copy tile and two stat tiles
@@ -889,7 +907,8 @@
 		grid-row: 1 / 3;
 		margin: 0;
 		min-height: clamp(380px, 44vw, 520px);
-		background: #e6ebf2;
+		/* matches the portrait's studio backdrop, so no seam shows at the edges */
+		background: #fcfcfc;
 	}
 	.bt-about-photo img {
 		position: absolute;
@@ -897,7 +916,9 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-		object-position: 50% 22%;
+		/* the portrait is framed tight to the top of the head — anchoring the
+		   crop at 0% keeps it intact when the tile goes wide at smaller widths */
+		object-position: 50% 0%;
 	}
 	.bt-about-copy {
 		grid-column: 2 / 4;
@@ -1277,25 +1298,27 @@
 		.bt-about {
 			grid-template-columns: 1fr 1fr;
 		}
+		/* the portrait keeps its own column here rather than stretching to a
+		   full-width banner, which would crop it down to just the face */
 		.bt-about-photo {
-			grid-column: 1 / 3;
-			grid-row: 1;
-			min-height: clamp(300px, 42vw, 400px);
+			grid-column: 1;
+			grid-row: 1 / 3;
+			min-height: clamp(340px, 46vw, 460px);
 		}
 		.bt-about-photo img {
-			object-position: 50% 18%;
+			object-position: 50% 0%;
 		}
 		.bt-about-copy {
 			grid-column: 1 / 3;
-			grid-row: 2;
+			grid-row: 3;
 		}
 		.bt-stat-navy {
-			grid-column: 1;
-			grid-row: 3;
+			grid-column: 2;
+			grid-row: 1;
 		}
 		.bt-stat-accent {
 			grid-column: 2;
-			grid-row: 3;
+			grid-row: 2;
 		}
 	}
 
@@ -1303,14 +1326,13 @@
 		.bt-services {
 			grid-template-columns: repeat(2, 1fr);
 		}
+		/* six cards divide evenly across two columns, so — unlike the five-card
+		   layout this replaced — nothing has to stretch to fill an orphan row */
 		.bt-svc,
-		.bt-svc.wide {
+		.bt-svc.wide,
+		.bt-svc.feature {
 			grid-column: span 1;
 			min-height: 340px;
-		}
-		.bt-svc:last-child {
-			grid-column: span 2;
-			min-height: 300px;
 		}
 
 		.bt-contact {
@@ -1406,7 +1428,7 @@
 		}
 		.bt-svc,
 		.bt-svc.wide,
-		.bt-svc:last-child {
+		.bt-svc.feature {
 			grid-column: 1;
 			min-height: 300px;
 		}
