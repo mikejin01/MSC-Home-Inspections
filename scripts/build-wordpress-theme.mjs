@@ -299,13 +299,24 @@ function ${P}_ensure_required_pages() {
             }
             continue;
         }
-        if (!get_page_by_path($slug)) {
+        $existing = get_page_by_path($slug);
+        if (!$existing) {
             wp_insert_post(array(
                 'post_type'   => 'page',
                 'post_status' => 'publish',
                 'post_title'  => $title,
                 'post_name'   => $slug,
             ));
+            continue;
+        }
+        // WordPress creates a DRAFT "Privacy Policy" page (usually ID 3) on
+        // every new install. A route whose page exists but is unpublished still
+        // 404s, and an existence check alone silently skips it — which is
+        // exactly how /privacy-policy/ shipped dead on 19 Aug 2026. Adopt the
+        // stub instead of leaving a dead link in the footer.
+        // 'private' is left alone: that status is a deliberate editorial choice.
+        if (in_array(get_post_status($existing), array('draft', 'pending', 'auto-draft'), true)) {
+            wp_update_post(array('ID' => $existing->ID, 'post_status' => 'publish'));
         }
     }
     flush_rewrite_rules();
