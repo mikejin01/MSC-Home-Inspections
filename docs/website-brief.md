@@ -1,4 +1,4 @@
-# MSC Home Inspections LLC — Business & Brand Profile
+# MSC Home Inspections LLC — Website Brief
 
 > Source: `docs/Business Flyer.jpg`. Everything below is extracted from the flyer unless marked **[Inferred]** or **[Needs confirmation]**. This document pairs with the flyer as the reference for building the business website.
 

@@ -9,3 +9,19 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .playwright-cli
+
+# Generated WordPress theme — rebuilt by `pnpm run build:wordpress` every time.
+/wordpress-theme
+/*.zip
+
+# Theme pulled down from the live server for inspection (`make pull`).
+/siteground
+
+# Throwaway WP-CLI exports used by `make pull-content` / `make check-content-drift`.
+# The merged result lands in the tracked src/lib/content-overrides.json.
+/.content-sync
+
+# Per-site SSH/deploy credentials — must NEVER be committed.
+# Only the documented template and README are tracked.
+.live-sites/*.mk
+!.live-sites/_template.mk

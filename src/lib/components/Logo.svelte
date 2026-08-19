@@ -13,18 +13,30 @@
 	 * `mark-msc*.png` here is extracted from the flyer JPEG.
 	 */
 	import { LOGO, BRAND_LEGAL } from '$lib/content.js';
+	import { assetUrl } from '$lib/wp/assets.js';
+	import { wpEdit } from '$lib/wp/wpEdit.svelte.js';
 
 	let { light = false, size = 'md' } = $props();
+
+	// Brand marks are site-wide, so they're `global_` keys set from X.O. Admin's
+	// logo pickers rather than edited inline — an overlay toolbar on a 32px-tall
+	// header mark would be unusable, and the two placements must stay in step.
+	const mark = $derived(
+		light
+			? assetUrl(wpEdit.text('global_logo_mark_light', LOGO.markLight))
+			: assetUrl(wpEdit.text('global_logo_mark', LOGO.mark))
+	);
+	const name = $derived(wpEdit.text('global_business_name', BRAND_LEGAL));
 </script>
 
 <span class="lk lk-{size}" class:light>
-	<img class="lk-mark" src={light ? LOGO.markLight : LOGO.mark} alt="" width="270" height="120" />
+	<img class="lk-mark" src={mark} alt="" width="270" height="120" />
 	<!-- the wordmark is decorative here; the accessible name comes from .lk-sr -->
 	<span class="lk-text" aria-hidden="true">
 		<span class="lk-name">MSC</span>
 		<span class="lk-sub">Home Inspections</span>
 	</span>
-	<span class="lk-sr">{BRAND_LEGAL}</span>
+	<span class="lk-sr">{name}</span>
 </span>
 
 <style>

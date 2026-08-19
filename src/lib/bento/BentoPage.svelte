@@ -17,132 +17,151 @@
 
 	   Everything is namespaced `bt-*` and scoped to this component.
 	   =========================================================================== */
-	import { reveal, scrolled } from '$lib/actions.js';
+	import { base } from '$app/paths';
+	import { reveal } from '$lib/actions.js';
 	import { openBooking } from '$lib/booking.svelte.js';
 	import Icon from '$lib/components/Icon.svelte';
-	import Logo from '$lib/components/Logo.svelte';
+	import SiteHeader from '$lib/components/SiteHeader.svelte';
+	import SiteFooter from '$lib/components/SiteFooter.svelte';
+	import InlineEdit from '$lib/inline-edit/InlineEdit.svelte';
+	import ImageEdit from '$lib/inline-edit/ImageEdit.svelte';
+	import LinkEdit from '$lib/inline-edit/LinkEdit.svelte';
+	import { assetUrl } from '$lib/wp/assets.js';
+	import { mailHref, telHref } from '$lib/wp/client.js';
+	import { wpEdit } from '$lib/wp/wpEdit.svelte.js';
 	import {
-		BRAND_LEGAL,
 		CONTACT,
 		LOGO,
-		NAV_LINKS,
 		HERO,
 		TRUST,
 		SERVICES,
 		ABOUT,
 		PROCESS,
 		FAQS,
-		CONTACT_SECTION,
-		FOOTER
+		CONTACT_SECTION
 	} from '$lib/content.js';
 
-	/* ---------- mobile nav ---------- */
-	let navOpen = $state(false);
-	const closeNav = () => (navOpen = false);
+	/* ---------- content layer ----------
+	   Every string below reads through `t(key, default)`. The default is the
+	   value in src/lib/content.js; the WordPress database can shadow any key at
+	   runtime, and logged-in users edit them in place. See src/lib/wp/. */
+	const t = (/** @type {string} */ key, /** @type {string} */ fallback) => wpEdit.text(key, fallback);
 
-	/* ---------- FAQ accordion ---------- */
+	/* Site-wide details. Editing the phone number in X.O. Admin updates every
+	   place it appears, including the tel: links, which are derived not stored. */
+	const phone = $derived(t('global_contact_phone', CONTACT.phone));
+	const phoneLink = $derived(telHref(phone));
+	const email = $derived(t('global_contact_email', CONTACT.email));
+	const emailLink = $derived(mailHref(email));
+
+	/* ---------- FAQ accordion ----------
+	   `openFaq` is the index of the one open panel, or -1 for none. The closed
+	   panels are hidden with `visibility` rather than height alone, so their
+	   text leaves both the tab order and the screen-reader flow and matches
+	   what `aria-expanded` on the trigger claims. */
 	let openFaq = $state(0);
-	const toggleFaq = (i) => (openFaq = openFaq === i ? -1 : i);
+	const toggleFaq = (/** @type {number} */ i) => (openFaq = openFaq === i ? -1 : i);
 
-	const year = 2026;
+	/**
+	 * In edit mode, links must not navigate — a click is how you open the URL
+	 * popover or place a caret in editable text. LinkEdit handles its own
+	 * anchors, so those are left alone.
+	 * @param {MouseEvent} event
+	 */
+	function suppressNavigation(event) {
+		if (!wpEdit.isEditing) return;
+		const anchor = /** @type {HTMLElement} */ (event.target)?.closest?.('a');
+		if (anchor && !anchor.closest('.xo-le')) event.preventDefault();
+	}
 </script>
 
-<div class="bt-page">
-	<!-- ================================ HEADER ================================ -->
-	<header class="bt-header" id="top" class:nav-open={navOpen} use:scrolled>
-		<div class="bt-header-inner">
-			<a href="#top" class="bt-logo" onclick={closeNav}>
-				<Logo />
-			</a>
+<!-- Call-to-action buttons carry editable labels. A contenteditable node inside
+     a <button> is not reliably focusable, so edit mode renders the same classes
+     on a <span> instead — identical styling, no swallowed clicks. -->
+{#snippet cta(/** @type {string} */ cls, /** @type {string} */ key, /** @type {string} */ label, /** @type {() => void} */ onclick)}
+	{#if wpEdit.isEditing}
+		<span class={cls}><InlineEdit k={key} value={label} /></span>
+	{:else}
+		<button class={cls} {onclick}>{t(key, label)}</button>
+	{/if}
+{/snippet}
 
-			<nav class="bt-nav" aria-label="Primary">
-				{#each NAV_LINKS as link}
-					<a href={link.href} onclick={closeNav}>{link.label}</a>
-				{/each}
-				<a class="bt-nav-tel" href={CONTACT.phoneHref} onclick={closeNav}>
-					<Icon name="phone" size={15} />
-					{CONTACT.phone}
-				</a>
-				<button
-					class="bt-btn bt-btn-primary bt-btn-sm"
-					onclick={() => {
-						openBooking();
-						closeNav();
-					}}
-				>
-					Schedule
-				</button>
-			</nav>
+<div class="bt-page" onclickcapture={suppressNavigation}>
+	<!-- Bypass Blocks (WCAG 2.4.1): first thing in the tab order, visible only
+	     while focused. -->
+	<a class="xo-skip" href="#main">Skip to main content</a>
 
-			<button
-				class="bt-hamburger"
-				aria-label="Toggle menu"
-				aria-expanded={navOpen}
-				onclick={() => (navOpen = !navOpen)}
-			>
-				<span></span><span></span><span></span>
-			</button>
-		</div>
-	</header>
+	<SiteHeader />
 
-	<main class="bt-main">
+	<main class="bt-main" id="main" tabindex="-1" data-skip-target>
 		<!-- ================================ HERO ================================ -->
 		<section class="bt-hero" aria-label="Welcome">
 			<!-- statement tile -->
-			<div class="bt-tile bt-hero-main">
-				<p class="bt-eyebrow bt-on-dark">{HERO.eyebrow}</p>
+			<div class="bt-tile bt-hero-main on-dark">
+				<p class="bt-eyebrow bt-on-dark"><InlineEdit k="hero_eyebrow" value={HERO.eyebrow} /></p>
 				<h1 class="bt-hero-title">
-					{HERO.titleTop}<br />
-					<span class="bt-accent-text">{HERO.titleAccent}</span><br />
-					{HERO.titleBottom}
+					<InlineEdit k="hero_title_top" value={HERO.titleTop} /><br />
+					<span class="bt-accent-text"><InlineEdit k="hero_title_accent" value={HERO.titleAccent} /></span><br />
+					<InlineEdit k="hero_title_bottom" value={HERO.titleBottom} />
 				</h1>
-				<p class="bt-hero-lead">{HERO.lead}</p>
+				<p class="bt-hero-lead"><InlineEdit k="hero_lead" value={HERO.lead} multiline /></p>
 				<div class="bt-hero-cta">
-					<button class="bt-btn bt-btn-primary" onclick={openBooking}>Schedule an Inspection</button>
-					<a href="#services" class="bt-btn bt-btn-blur">What We Look For</a>
+					{@render cta('bt-btn bt-btn-primary', 'hero_cta_primary', 'Schedule an Inspection', openBooking)}
+					<LinkEdit urlKey="hero_cta_secondary_url" defaultHref="#services" class="bt-btn bt-btn-blur">
+						<InlineEdit k="hero_cta_secondary" value="What We Look For" />
+					</LinkEdit>
 				</div>
 			</div>
 
 			<!-- tall photo tile -->
 			<figure class="bt-tile bt-hero-photo">
-				<img src={HERO.photo} alt={HERO.photoAlt} width="1800" height="1200" fetchpriority="high" />
+				<ImageEdit
+					k="hero_photo"
+					src={HERO.photo}
+					altKey="hero_photo_alt"
+					alt={HERO.photoAlt}
+					width="1800"
+					height="1200"
+					fetchpriority="high"
+				/>
 				<figcaption class="bt-photo-badge">
 					<Icon name="pin" size={15} />
-					Serving {CONTACT.serviceArea}
+					<!-- quoted as an expression: a bare {{ in an attribute would parse as Svelte syntax -->
+					<InlineEdit k="hero_badge" value={'Serving {{SERVICE_AREA}}'} />
 				</figcaption>
 			</figure>
 
 			<!-- script tagline tile -->
 			<div class="bt-tile bt-hero-script">
-				<img class="bt-hero-mark" src={LOGO.mark} alt="" width="270" height="120" />
-				<p class="bt-script">{HERO.script}</p>
+				<img class="bt-hero-mark" src={assetUrl(t('global_logo_mark', LOGO.mark))} alt="" width="270" height="120" />
+				<p class="bt-script"><InlineEdit k="hero_script" value={HERO.script} /></p>
 			</div>
 
 			<!-- call tile -->
-			<a class="bt-tile bt-hero-call" href={CONTACT.phoneHref}>
+			<a class="bt-tile bt-hero-call on-dark" href={phoneLink}>
 				<span class="bt-call-icon"><Icon name="phone" size={20} /></span>
 				<span class="bt-call-body">
-					<span class="bt-call-label">Call or text</span>
-					<span class="bt-call-number">{CONTACT.phone}</span>
+					<span class="bt-call-label"><InlineEdit k="hero_call_label" value="Call or text" /></span>
+					<span class="bt-call-number">{phone}</span>
 				</span>
 			</a>
 		</section>
 
 		<!-- ============================= TRUST STRIP ============================= -->
-		<section class="bt-tile bt-trust" use:reveal aria-label="Why MSC">
+		<section class="bt-tile bt-trust on-dark" use:reveal aria-label="Why MSC">
 			<div class="bt-trust-half">
 				<span class="bt-trust-icon"><Icon name="shield-check" size={26} /></span>
 				<p>
-					<strong>{TRUST.left}</strong><br />
-					<span class="bt-accent-text">{TRUST.leftAccent}</span>
+					<strong><InlineEdit k="trust_left" value={TRUST.left} /></strong><br />
+					<span class="bt-accent-text"><InlineEdit k="trust_left_accent" value={TRUST.leftAccent} /></span>
 				</p>
 			</div>
 			<div class="bt-trust-rule" aria-hidden="true"></div>
 			<div class="bt-trust-half">
 				<span class="bt-trust-icon"><Icon name="check-circle" size={26} /></span>
 				<p>
-					<strong>{TRUST.right}</strong><br />
-					<span class="bt-accent-text">{TRUST.rightAccent}</span>
+					<strong><InlineEdit k="trust_right" value={TRUST.right} /></strong><br />
+					<span class="bt-accent-text"><InlineEdit k="trust_right_accent" value={TRUST.rightAccent} /></span>
 				</p>
 			</div>
 		</section>
@@ -150,9 +169,9 @@
 		<!-- =============================== SERVICES =============================== -->
 		<section class="bt-block" id="services" use:reveal>
 			<div class="bt-head">
-				<p class="bt-eyebrow">{SERVICES.eyebrow}</p>
-				<h2 class="bt-title">{SERVICES.title}</h2>
-				<p class="bt-lead">{SERVICES.lead}</p>
+				<p class="bt-eyebrow"><InlineEdit k="services_eyebrow" value={SERVICES.eyebrow} /></p>
+				<h2 class="bt-title"><InlineEdit k="services_title" value={SERVICES.title} /></h2>
+				<p class="bt-lead"><InlineEdit k="services_lead" value={SERVICES.lead} multiline /></p>
 			</div>
 
 			<div class="bt-services">
@@ -162,12 +181,22 @@
 						class:wide={s.span === 'wide'}
 						class:feature={s.span === 'feature'}
 						id={s.id}
+						aria-labelledby="svc-{s.id}-title"
 					>
-						<img class="bt-svc-bg" src={s.img} alt={s.alt} loading="lazy" />
+						<ImageEdit
+							class="bt-svc-bg"
+							k="service_{s.id}_img"
+							src={s.img}
+							altKey="service_{s.id}_alt"
+							alt={s.alt}
+							loading="lazy"
+						/>
 						<div class="bt-svc-overlay">
 							<span class="bt-badge"><Icon name={s.icon} size={22} /></span>
-							<h3 class="bt-svc-title">{s.title}</h3>
-							<p class="bt-svc-body">{s.body}</p>
+							<h3 class="bt-svc-title" id="svc-{s.id}-title">
+								<InlineEdit k="service_{s.id}_title" value={s.title} />
+							</h3>
+							<p class="bt-svc-body"><InlineEdit k="service_{s.id}_body" value={s.body} multiline /></p>
 						</div>
 					</article>
 				{/each}
@@ -177,52 +206,59 @@
 		<!-- ================================ ABOUT ================================ -->
 		<section class="bt-block" id="about" use:reveal>
 			<div class="bt-head">
-				<p class="bt-eyebrow">{ABOUT.eyebrow}</p>
-				<h2 class="bt-title">{ABOUT.title}</h2>
+				<p class="bt-eyebrow"><InlineEdit k="about_eyebrow" value={ABOUT.eyebrow} /></p>
+				<h2 class="bt-title"><InlineEdit k="about_title" value={ABOUT.title} /></h2>
 			</div>
 
 			<div class="bt-about">
 				<figure class="bt-tile bt-about-photo">
-					<img src={ABOUT.photo} alt={ABOUT.photoAlt} width="469" height="558" loading="lazy" />
+					<ImageEdit
+						k="about_photo"
+						src={ABOUT.photo}
+						altKey="about_photo_alt"
+						alt={ABOUT.photoAlt}
+						width="469"
+						height="558"
+						loading="lazy"
+					/>
 				</figure>
 
 				<div class="bt-tile bt-about-copy">
-					<p>{ABOUT.body}</p>
-					<p>{ABOUT.body2}</p>
+					<p><InlineEdit k="about_body" value={ABOUT.body} multiline /></p>
+					<p><InlineEdit k="about_body2" value={ABOUT.body2} multiline /></p>
 					<div class="bt-about-cta">
-						<button class="bt-btn bt-btn-primary" onclick={openBooking}>Schedule an Inspection</button>
-						<a href="#process" class="bt-btn bt-btn-line">How It Works</a>
+						{@render cta('bt-btn bt-btn-primary', 'about_cta_primary', 'Schedule an Inspection', openBooking)}
+						<LinkEdit urlKey="about_cta_secondary_url" defaultHref="#process" class="bt-btn bt-btn-line">
+							<InlineEdit k="about_cta_secondary" value="How It Works" />
+						</LinkEdit>
 					</div>
 				</div>
 
-				<div class="bt-tile bt-stat bt-stat-navy">
-					<span class="bt-stat-num">{ABOUT.stats[0].value}</span>
-					<span class="bt-stat-label">{ABOUT.stats[0].label}</span>
-				</div>
-
-				<div class="bt-tile bt-stat bt-stat-accent">
-					<span class="bt-stat-num">{ABOUT.stats[1].value}</span>
-					<span class="bt-stat-label">{ABOUT.stats[1].label}</span>
-				</div>
+				{#each ABOUT.stats as stat, i}
+					<div class="bt-tile bt-stat {i === 0 ? 'bt-stat-navy' : 'bt-stat-accent'}">
+						<span class="bt-stat-num"><InlineEdit k="about_stat_{i}_value" value={stat.value} /></span>
+						<span class="bt-stat-label"><InlineEdit k="about_stat_{i}_label" value={stat.label} /></span>
+					</div>
+				{/each}
 			</div>
 		</section>
 
 		<!-- =============================== PROCESS =============================== -->
 		<section class="bt-block" id="process" use:reveal>
 			<div class="bt-head">
-				<p class="bt-eyebrow">{PROCESS.eyebrow}</p>
-				<h2 class="bt-title">{PROCESS.title}</h2>
+				<p class="bt-eyebrow"><InlineEdit k="process_eyebrow" value={PROCESS.eyebrow} /></p>
+				<h2 class="bt-title"><InlineEdit k="process_title" value={PROCESS.title} /></h2>
 			</div>
 
 			<div class="bt-process">
 				{#each PROCESS.steps as step, i}
 					<article class="bt-tile bt-step">
-						<span class="bt-step-num" aria-hidden="true">{step.n}</span>
+						<span class="bt-step-num" aria-hidden="true">{t(`step_${i}_n`, step.n)}</span>
 						<span class="bt-step-icon">
 							<Icon name={['calendar', 'search', 'file'][i]} size={22} />
 						</span>
-						<h3 class="bt-step-title">{step.title}</h3>
-						<p class="bt-step-body">{step.body}</p>
+						<h3 class="bt-step-title"><InlineEdit k="step_{i}_title" value={step.title} /></h3>
+						<p class="bt-step-body"><InlineEdit k="step_{i}_body" value={step.body} multiline /></p>
 					</article>
 				{/each}
 			</div>
@@ -231,24 +267,41 @@
 		<!-- ================================= FAQ ================================= -->
 		<section class="bt-block" id="faq" use:reveal>
 			<div class="bt-head bt-head-center">
-				<p class="bt-eyebrow">{FAQS.eyebrow}</p>
-				<h2 class="bt-title">{FAQS.title}</h2>
+				<p class="bt-eyebrow"><InlineEdit k="faq_eyebrow" value={FAQS.eyebrow} /></p>
+				<h2 class="bt-title"><InlineEdit k="faq_title" value={FAQS.title} /></h2>
 			</div>
 
 			<div class="bt-faq">
 				{#each FAQS.list as f, i}
-					<div class="bt-tile bt-faq-item" class:open={openFaq === i}>
-						<button
-							class="bt-faq-q"
-							aria-expanded={openFaq === i}
-							aria-controls="bt-faq-panel-{i}"
-							onclick={() => toggleFaq(i)}
+					<!-- Edit mode opens every panel and drops the accordion <button>:
+					     questions and answers both need to be reachable, and a
+					     contenteditable inside a button is not. -->
+					<div class="bt-tile bt-faq-item" class:open={wpEdit.isEditing || openFaq === i}>
+						{#if wpEdit.isEditing}
+							<span class="bt-faq-q" id="bt-faq-q-{i}">
+								<span class="bt-faq-question"><InlineEdit k="faq_{i}_q" value={f.q} /></span>
+							</span>
+						{:else}
+							<button
+								class="bt-faq-q"
+								id="bt-faq-q-{i}"
+								aria-expanded={openFaq === i}
+								aria-controls="bt-faq-panel-{i}"
+								onclick={() => toggleFaq(i)}
+							>
+								<span class="bt-faq-question">{t(`faq_${i}_q`, f.q)}</span>
+								<span class="bt-faq-icon" aria-hidden="true"></span>
+							</button>
+						{/if}
+						<div
+							class="bt-faq-panel"
+							id="bt-faq-panel-{i}"
+							role="region"
+							aria-labelledby="bt-faq-q-{i}"
 						>
-							<span class="bt-faq-question">{f.q}</span>
-							<span class="bt-faq-icon" aria-hidden="true"></span>
-						</button>
-						<div class="bt-faq-panel" id="bt-faq-panel-{i}">
-							<div class="bt-faq-panel-inner"><p>{f.a}</p></div>
+							<div class="bt-faq-panel-inner">
+								<p><InlineEdit k="faq_{i}_a" value={f.a} multiline /></p>
+							</div>
 						</div>
 					</div>
 				{/each}
@@ -258,349 +311,55 @@
 		<!-- =============================== CONTACT =============================== -->
 		<section class="bt-block" id="contact" use:reveal>
 			<div class="bt-head">
-				<p class="bt-eyebrow">{CONTACT_SECTION.eyebrow}</p>
-				<h2 class="bt-title">{CONTACT_SECTION.title}</h2>
+				<p class="bt-eyebrow"><InlineEdit k="contact_eyebrow" value={CONTACT_SECTION.eyebrow} /></p>
+				<h2 class="bt-title"><InlineEdit k="contact_title" value={CONTACT_SECTION.title} /></h2>
 			</div>
 
 			<div class="bt-contact">
-				<div class="bt-tile bt-contact-cta">
+				<div class="bt-tile bt-contact-cta on-dark">
 					<h3 class="bt-contact-cta-title">
-						Book your inspection<br />
-						<span class="bt-accent-text">and buy with confidence.</span>
+						<InlineEdit k="contact_cta_title" value="Book your inspection" /><br />
+						<span class="bt-accent-text">
+							<InlineEdit k="contact_cta_title_accent" value="and buy with confidence." />
+						</span>
 					</h3>
-					<p class="bt-contact-cta-lead">{CONTACT_SECTION.lead}</p>
+					<p class="bt-contact-cta-lead">
+						<InlineEdit k="contact_cta_lead" value={CONTACT_SECTION.lead} multiline />
+					</p>
 					<div class="bt-contact-cta-actions">
-						<button class="bt-btn bt-btn-light" onclick={openBooking}>Request an Inspection</button>
-						<a href={CONTACT.phoneHref} class="bt-btn bt-btn-blur">
+						{@render cta('bt-btn bt-btn-light', 'contact_cta_button', 'Request an Inspection', openBooking)}
+						<a href={phoneLink} class="bt-btn bt-btn-blur">
 							<Icon name="phone" size={16} />
-							{CONTACT.phone}
+							{phone}
 						</a>
 					</div>
 				</div>
 
-				<a class="bt-tile bt-info" href={CONTACT.phoneHref}>
+				<a class="bt-tile bt-info" href={phoneLink}>
 					<span class="bt-badge bt-badge-soft"><Icon name="phone" size={19} /></span>
-					<span class="bt-info-label">Call or text</span>
-					<span class="bt-info-value">{CONTACT.phone}</span>
+					<span class="bt-info-label"><InlineEdit k="contact_phone_label" value="Call or text" /></span>
+					<span class="bt-info-value">{phone}</span>
 				</a>
 
-				<a class="bt-tile bt-info" href="mailto:{CONTACT.email}">
+				<a class="bt-tile bt-info" href={emailLink}>
 					<span class="bt-badge bt-badge-soft"><Icon name="mail" size={19} /></span>
-					<span class="bt-info-label">Email</span>
-					<span class="bt-info-value bt-info-email">{CONTACT.email}</span>
+					<span class="bt-info-label"><InlineEdit k="contact_email_label" value="Email" /></span>
+					<span class="bt-info-value bt-info-email">{email}</span>
 				</a>
 
 				<div class="bt-tile bt-info">
 					<span class="bt-badge bt-badge-soft"><Icon name="pin" size={19} /></span>
-					<span class="bt-info-label">Service area</span>
-					<span class="bt-info-value">{CONTACT.serviceAreaShort}</span>
+					<span class="bt-info-label"><InlineEdit k="contact_area_label" value="Service area" /></span>
+					<span class="bt-info-value">{t('global_city_state', CONTACT.serviceAreaShort)}</span>
 				</div>
 			</div>
 		</section>
 	</main>
 
-	<!-- ================================ FOOTER ================================ -->
-	<footer class="bt-footer">
-		<div class="bt-footer-card">
-			<div class="bt-footer-inner">
-				<div class="bt-footer-brand">
-					<a href="#top" class="bt-footer-logo">
-						<Logo light size="lg" />
-					</a>
-					<p>{FOOTER.blurb}</p>
-					<p class="bt-footer-contact">
-						<a href={CONTACT.phoneHref}>{CONTACT.phone}</a><br />
-						<a href="mailto:{CONTACT.email}">{CONTACT.email}</a>
-					</p>
-				</div>
-
-				<nav class="bt-footer-links" aria-label="Footer">
-					{#each FOOTER.columns as col}
-						<div class="bt-footer-col">
-							<span class="bt-footer-label">{col.label}</span>
-							{#each col.links as l}
-								<a href={l.href}>{l.label}</a>
-							{/each}
-						</div>
-					{/each}
-				</nav>
-			</div>
-
-			<div class="bt-footer-legal">
-				<span>© {year} {BRAND_LEGAL}. All rights reserved.</span>
-				<span class="bt-footer-tag">Protecting What Matters Most.</span>
-			</div>
-		</div>
-	</footer>
+	<SiteFooter pageBase={base} />
 </div>
 
 <style>
-	/* =====================================================================
-	   DESIGN TOKENS — lifted from the flyer (see docs/business-profile.md §4)
-	   ===================================================================== */
-	.bt-page {
-		--bg: #eff2f7;
-		--tile: #ffffff;
-		--ink: #0b1622;
-		--navy: #0e2135;
-		--navy-2: #16304c;
-		--soft: #4a5765;
-		--faint: #7b8798;
-		--line: rgba(14, 33, 53, 0.09);
-		--line-strong: rgba(14, 33, 53, 0.16);
-		--accent: #1c6fc9;
-		--accent-deep: #15558f;
-		--accent-bright: #2e86e0;
-
-		--display: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
-		--body: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-		--script: 'Yellowtail', 'Segoe Script', cursive;
-
-		--r: 20px;
-		--r-lg: 28px;
-		--r-sm: 14px;
-		--pill: 999px;
-		--gap: clamp(12px, 1.15vw, 16px);
-		--maxw: 1240px;
-		--rail: clamp(16px, 4vw, 40px);
-		--nav-h: 72px;
-		--ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-
-		font-family: var(--body);
-		font-size: 16px;
-		line-height: 1.6;
-		color: var(--ink);
-		background: var(--bg);
-		-webkit-font-smoothing: antialiased;
-	}
-	.bt-page :global([id]) {
-		scroll-margin-top: calc(var(--nav-h) + 16px);
-	}
-
-	/* --------------------------------------------------------- shared type */
-	.bt-eyebrow {
-		font-family: var(--body);
-		font-size: 12px;
-		font-weight: 700;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--accent);
-		margin-bottom: 12px;
-	}
-	.bt-eyebrow.bt-on-dark {
-		color: var(--accent-bright);
-	}
-	.bt-title {
-		font-family: var(--display);
-		font-size: clamp(28px, 3.6vw, 46px);
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.005em;
-		line-height: 1.06;
-		color: var(--navy);
-	}
-	.bt-lead {
-		font-size: clamp(15px, 1.3vw, 17px);
-		line-height: 1.65;
-		color: var(--soft);
-		max-width: 58ch;
-		margin-top: 14px;
-	}
-	.bt-head {
-		margin-bottom: clamp(20px, 2.4vw, 30px);
-	}
-	.bt-head-center {
-		text-align: center;
-	}
-	.bt-head-center .bt-lead {
-		margin-inline: auto;
-	}
-	/* the flyer's signature move: one phrase of a headline in accent blue */
-	.bt-accent-text {
-		color: var(--accent-bright);
-	}
-	.bt-script {
-		font-family: var(--script);
-		font-weight: 400;
-		line-height: 1.25;
-		color: var(--navy);
-	}
-
-	/* ------------------------------------------------------------- buttons */
-	.bt-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5em;
-		font-family: var(--display);
-		font-size: 15px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		padding: 12px 26px;
-		border-radius: var(--pill);
-		border: 1px solid transparent;
-		white-space: nowrap;
-		cursor: pointer;
-		transition:
-			background-color 0.22s var(--ease),
-			border-color 0.22s var(--ease),
-			color 0.22s var(--ease),
-			transform 0.22s var(--ease);
-	}
-	.bt-btn:active {
-		transform: scale(0.97);
-	}
-	.bt-btn-sm {
-		font-size: 13.5px;
-		padding: 9px 18px;
-	}
-	.bt-btn-primary {
-		background: var(--accent);
-		color: #fff;
-	}
-	.bt-btn-primary:hover {
-		background: var(--accent-deep);
-	}
-	.bt-btn-light {
-		background: #fff;
-		color: var(--navy);
-	}
-	.bt-btn-light:hover {
-		background: rgba(255, 255, 255, 0.86);
-	}
-	.bt-btn-blur {
-		background: rgba(255, 255, 255, 0.12);
-		color: #fff;
-		border-color: rgba(255, 255, 255, 0.4);
-		backdrop-filter: blur(8px);
-		-webkit-backdrop-filter: blur(8px);
-	}
-	.bt-btn-blur:hover {
-		background: rgba(255, 255, 255, 0.22);
-	}
-	.bt-btn-line {
-		background: transparent;
-		color: var(--navy);
-		border-color: var(--line-strong);
-	}
-	.bt-btn-line:hover {
-		border-color: var(--navy);
-	}
-
-	/* ------------------------------------------------------ tile primitive */
-	.bt-tile {
-		position: relative;
-		background: var(--tile);
-		border: 1px solid var(--line);
-		border-radius: var(--r);
-		overflow: hidden;
-	}
-	.bt-badge {
-		width: 46px;
-		height: 46px;
-		flex: none;
-		display: grid;
-		place-items: center;
-		border-radius: 50%;
-		background: var(--accent);
-		color: #fff;
-	}
-	.bt-badge-soft {
-		background: rgba(28, 111, 201, 0.1);
-		color: var(--accent);
-	}
-
-	/* ======================================================================
-	   HEADER
-	   ====================================================================== */
-	.bt-header {
-		position: fixed;
-		inset: 0 0 auto;
-		z-index: 900;
-		height: var(--nav-h);
-		display: flex;
-		align-items: center;
-		background: color-mix(in srgb, var(--bg) 76%, transparent);
-		backdrop-filter: saturate(1.4) blur(18px);
-		-webkit-backdrop-filter: saturate(1.4) blur(18px);
-		border-bottom: 1px solid transparent;
-		transition:
-			background-color 0.3s var(--ease),
-			border-color 0.3s var(--ease);
-	}
-	.bt-header:global(.scrolled) {
-		background: color-mix(in srgb, var(--bg) 92%, transparent);
-		border-color: var(--line);
-	}
-	.bt-header-inner {
-		width: 100%;
-		max-width: var(--maxw);
-		margin: 0 auto;
-		padding: 0 var(--rail);
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 24px;
-	}
-	.bt-logo {
-		display: inline-flex;
-		flex: none;
-	}
-	.bt-nav {
-		display: flex;
-		align-items: center;
-		gap: clamp(14px, 1.7vw, 26px);
-	}
-	.bt-nav a:not(.bt-btn) {
-		font-size: 14px;
-		font-weight: 600;
-		color: var(--navy);
-		opacity: 0.82;
-		transition:
-			opacity 0.2s,
-			color 0.2s;
-	}
-	.bt-nav a:not(.bt-btn):hover {
-		opacity: 1;
-		color: var(--accent);
-	}
-	.bt-nav-tel {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		color: var(--accent) !important;
-		opacity: 1 !important;
-	}
-	.bt-hamburger {
-		display: none;
-		width: 42px;
-		height: 42px;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		gap: 5px;
-	}
-	.bt-hamburger span {
-		display: block;
-		width: 21px;
-		height: 2px;
-		background: var(--navy);
-		border-radius: 2px;
-		transition:
-			transform 0.3s var(--ease),
-			opacity 0.3s;
-	}
-	.nav-open .bt-hamburger span:nth-child(1) {
-		transform: translateY(7px) rotate(45deg);
-	}
-	.nav-open .bt-hamburger span:nth-child(2) {
-		opacity: 0;
-	}
-	.nav-open .bt-hamburger span:nth-child(3) {
-		transform: translateY(-7px) rotate(-45deg);
-	}
-
 	/* ======================================================================
 	   LAYOUT SHELL
 	   ====================================================================== */
@@ -611,17 +370,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: clamp(48px, 6vw, 92px);
-	}
-	.bt-page :global(.reveal) {
-		opacity: 0;
-		transform: translateY(18px);
-		transition:
-			opacity 0.7s var(--ease),
-			transform 0.7s var(--ease);
-	}
-	.bt-page :global(.reveal.in) {
-		opacity: 1;
-		transform: none;
 	}
 
 	/* ======================================================================
@@ -676,7 +424,7 @@
 		min-height: clamp(420px, 52vw, 620px);
 		background: var(--navy);
 	}
-	.bt-hero-photo img {
+	.bt-hero-photo :global(img) {
 		position: absolute;
 		inset: 0;
 		width: 100%;
@@ -729,7 +477,9 @@
 		gap: 16px;
 		padding: clamp(20px, 2.2vw, 30px);
 		border-color: transparent;
-		background: linear-gradient(140deg, var(--accent-bright), var(--accent) 58%, var(--accent-deep));
+		/* the gradient starts at --accent, not --accent-bright: white text on
+		   #2e86e0 is 3.75:1, short of the 4.5:1 the phone number needs */
+		background: linear-gradient(140deg, var(--accent), var(--accent) 22%, var(--accent-deep));
 		color: #fff;
 		transition:
 			transform 0.3s var(--ease),
@@ -758,7 +508,9 @@
 		font-weight: 700;
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
-		color: rgba(255, 255, 255, 0.78);
+		/* .78 measured 3.71:1 on --accent; .94 clears 4.5:1 and still reads as
+		   the quieter half of the pair */
+		color: rgba(255, 255, 255, 0.94);
 	}
 	.bt-call-number {
 		font-family: var(--display);
@@ -845,7 +597,7 @@
 		transform: translateY(-3px);
 		box-shadow: 0 20px 40px -20px rgba(14, 33, 53, 0.5);
 	}
-	.bt-svc-bg {
+	.bt-svc :global(.bt-svc-bg) {
 		position: absolute;
 		inset: 0;
 		width: 100%;
@@ -853,7 +605,7 @@
 		object-fit: cover;
 		transition: transform 0.8s var(--ease);
 	}
-	.bt-svc:hover .bt-svc-bg {
+	.bt-svc:hover :global(.bt-svc-bg) {
 		transform: scale(1.06);
 	}
 	.bt-svc-overlay {
@@ -910,7 +662,7 @@
 		/* matches the portrait's studio backdrop, so no seam shows at the edges */
 		background: #fcfcfc;
 	}
-	.bt-about-photo img {
+	.bt-about-photo :global(img) {
 		position: absolute;
 		inset: 0;
 		width: 100%;
@@ -957,7 +709,8 @@
 	.bt-stat-accent {
 		grid-column: 3;
 		grid-row: 2;
-		background: linear-gradient(150deg, var(--accent-bright), var(--accent-deep));
+		/* --accent rather than --accent-bright, so the label below clears 4.5:1 */
+		background: linear-gradient(150deg, var(--accent), var(--accent-deep));
 		color: #fff;
 	}
 	.bt-stat-num {
@@ -970,7 +723,7 @@
 	.bt-stat-label {
 		font-size: 13.5px;
 		line-height: 1.45;
-		color: rgba(255, 255, 255, 0.78);
+		color: rgba(255, 255, 255, 0.94);
 		max-width: 20ch;
 	}
 
@@ -1012,7 +765,7 @@
 		place-items: center;
 		border-radius: 50%;
 		background: rgba(28, 111, 201, 0.1);
-		color: var(--accent);
+		color: var(--accent-ink);
 	}
 	.bt-step-title {
 		font-family: var(--display);
@@ -1046,6 +799,7 @@
 	}
 	.bt-faq-q {
 		width: 100%;
+		min-height: 48px;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -1077,7 +831,7 @@
 		width: 14px;
 		height: 2px;
 		border-radius: 2px;
-		background: var(--accent);
+		background: var(--accent-ink);
 		transform: translate(-50%, -50%);
 		transition: transform 0.3s var(--ease);
 	}
@@ -1090,10 +844,20 @@
 	.bt-faq-panel {
 		display: grid;
 		grid-template-rows: 0fr;
-		transition: grid-template-rows 0.32s var(--ease);
+		/* `visibility` is the part that matters for assistive tech: a 0fr row
+		   still exposes its text and any link inside it, which would contradict
+		   the aria-expanded="false" on the trigger. */
+		visibility: hidden;
+		transition:
+			grid-template-rows 0.32s var(--ease),
+			visibility 0s linear 0.32s;
 	}
 	.bt-faq-item.open .bt-faq-panel {
 		grid-template-rows: 1fr;
+		visibility: visible;
+		transition:
+			grid-template-rows 0.32s var(--ease),
+			visibility 0s;
 	}
 	.bt-faq-panel-inner {
 		overflow: hidden;
@@ -1187,87 +951,6 @@
 	}
 
 	/* ======================================================================
-	   FOOTER
-	   ====================================================================== */
-	.bt-footer {
-		max-width: var(--maxw);
-		margin: 0 auto;
-		padding: clamp(48px, 6vw, 92px) var(--rail) clamp(24px, 5vw, 44px);
-	}
-	.bt-footer-card {
-		border-radius: var(--r-lg);
-		padding: clamp(32px, 4vw, 56px) clamp(26px, 3.4vw, 50px) clamp(26px, 3vw, 40px);
-		background: linear-gradient(158deg, var(--navy-2), var(--navy) 70%);
-		color: rgba(255, 255, 255, 0.78);
-	}
-	.bt-footer-inner {
-		display: grid;
-		grid-template-columns: 1.5fr 1fr 1fr 1fr;
-		gap: clamp(28px, 4vw, 56px);
-	}
-	.bt-footer-logo {
-		display: inline-flex;
-	}
-	.bt-footer-brand p {
-		font-size: 14px;
-		line-height: 1.6;
-		max-width: 36ch;
-		margin-top: 16px;
-	}
-	.bt-footer-contact {
-		font-family: var(--display);
-		font-size: 16px !important;
-		font-weight: 500;
-		letter-spacing: 0.02em;
-		color: #fff;
-	}
-	.bt-footer-contact a:hover {
-		color: var(--accent-bright);
-	}
-	.bt-footer-links {
-		display: contents;
-	}
-	.bt-footer-col {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-	.bt-footer-label {
-		font-family: var(--display);
-		font-size: 13px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: #fff;
-		margin-bottom: 4px;
-	}
-	.bt-footer-col a {
-		font-size: 14px;
-		color: rgba(255, 255, 255, 0.72);
-		transition: color 0.2s;
-	}
-	.bt-footer-col a:hover {
-		color: var(--accent-bright);
-	}
-	.bt-footer-legal {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 12px;
-		margin-top: clamp(28px, 4vw, 48px);
-		padding-top: 20px;
-		border-top: 1px solid rgba(255, 255, 255, 0.14);
-		font-size: 12.5px;
-		color: rgba(255, 255, 255, 0.55);
-	}
-	.bt-footer-tag {
-		font-family: var(--script);
-		font-size: 17px;
-		color: rgba(255, 255, 255, 0.72);
-	}
-
-	/* ======================================================================
 	   RESPONSIVE
 	   ====================================================================== */
 	@media (max-width: 1040px) {
@@ -1283,7 +966,7 @@
 			grid-row: 2;
 			min-height: clamp(280px, 40vw, 400px);
 		}
-		.bt-hero-photo img {
+		.bt-hero-photo :global(img) {
 			object-position: 50% 42%;
 		}
 		.bt-hero-script {
@@ -1305,7 +988,7 @@
 			grid-row: 1 / 3;
 			min-height: clamp(340px, 46vw, 460px);
 		}
-		.bt-about-photo img {
+		.bt-about-photo :global(img) {
 			object-position: 50% 0%;
 		}
 		.bt-about-copy {
@@ -1349,42 +1032,6 @@
 	}
 
 	@media (max-width: 900px) {
-		.bt-hamburger {
-			display: flex;
-			position: relative;
-			z-index: 860; /* stays clickable above the open drawer */
-		}
-		/* `.bt-header` sets backdrop-filter, which makes it the containing block
-		   for its position:fixed descendants — so the drawer must be sized
-		   explicitly rather than with `inset: 0`, which would resolve against
-		   the 72px-tall header. */
-		.bt-nav {
-			position: fixed;
-			top: 0;
-			right: 0;
-			height: 100vh;
-			height: 100dvh;
-			width: min(84vw, 330px);
-			flex-direction: column;
-			align-items: flex-start;
-			justify-content: center;
-			gap: 26px;
-			padding: 90px 40px;
-			overflow-y: auto;
-			background: var(--bg);
-			border-left: 1px solid var(--line);
-			box-shadow: -24px 0 48px -24px rgba(14, 33, 53, 0.45);
-			transform: translateX(100%);
-			transition: transform 0.4s var(--ease);
-			z-index: 850;
-		}
-		.nav-open .bt-nav {
-			transform: none;
-		}
-		.bt-nav a:not(.bt-btn) {
-			font-size: 17px;
-		}
-
 		.bt-trust {
 			flex-direction: column;
 			align-items: flex-start;
@@ -1396,12 +1043,6 @@
 			align-self: auto;
 		}
 
-		.bt-footer-inner {
-			grid-template-columns: 1fr 1fr;
-		}
-		.bt-footer-brand {
-			grid-column: 1 / -1;
-		}
 	}
 
 	@media (max-width: 620px) {
@@ -1461,12 +1102,5 @@
 			align-items: stretch;
 		}
 
-		.bt-footer-inner {
-			grid-template-columns: 1fr;
-		}
-		.bt-footer-legal {
-			flex-direction: column;
-			align-items: flex-start;
-		}
 	}
 </style>

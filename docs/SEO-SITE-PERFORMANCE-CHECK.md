@@ -1,0 +1,1 @@
+/Users/mikejin/Documents/GitHub/iDeal Auto/iDeal Auto Collision/docs/SEO-SITE-PERFORMANCE-CHECK.md

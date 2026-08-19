@@ -1,7 +1,12 @@
 /* =========================================================================
-   Global reset only.
-   All visual design lives in the scoped `bt-*` system inside
-   src/lib/bento/BentoPage.svelte, so nothing here should carry brand styling.
+   Global reset, design tokens, and the handful of primitives shared by every
+   page (the bento home page and the legal pages).
+
+   Everything visual is still namespaced `bt-*`. Layout-specific rules stay
+   scoped inside their components — src/lib/bento/BentoPage.svelte,
+   src/lib/components/SiteHeader.svelte, src/lib/components/SiteFooter.svelte,
+   src/lib/legal/LegalPage.svelte — and only the pieces more than one of them
+   needs live here.
    ========================================================================= */
 
 *,
@@ -84,7 +89,289 @@ button {
 	cursor: pointer;
 }
 
-:where(a, button, input, select, textarea):focus-visible {
-	outline: 2px solid #1c6fc9;
+/* Placeholders are text: the browser default (~#757575 in Chrome, lighter in
+   Safari) misses 4.5:1 on our tinted field background, so pin it. */
+::placeholder {
+	color: #626e80;
+	opacity: 1;
+}
+
+/* =========================================================================
+   FOCUS VISIBILITY (WCAG 2.4.7 Focus Visible, 1.4.11 Non-text Contrast)
+
+   Two rings, because one colour cannot clear 3:1 against both a #eff2f7 page
+   and a #0e2135 tile. The default is the brand blue on light; anything inside
+   a dark surface opts into the white ring by carrying `.on-dark` (or living
+   inside an element that does).
+   ========================================================================= */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+	outline: 3px solid #1866b8;
 	outline-offset: 2px;
+	border-radius: 3px;
+}
+
+:where(.on-dark, .on-dark *):focus-visible {
+	outline-color: #ffffff;
+}
+
+/* =========================================================================
+   SCREEN-READER + SKIP-LINK UTILITIES
+   ========================================================================= */
+
+/* Visually hidden, still announced. */
+.xo-sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Bypass Blocks (WCAG 2.4.1). Off-screen until focused, then it lands over the
+   fixed header — which is why its z-index sits above the header's 900. */
+.xo-skip {
+	position: fixed;
+	top: 8px;
+	left: 8px;
+	z-index: 1200;
+	display: inline-block;
+	padding: 12px 20px;
+	border-radius: 999px;
+	background: #0e2135;
+	color: #ffffff;
+	font-family: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
+	font-size: 14px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	box-shadow: 0 18px 34px -18px rgba(14, 33, 53, 0.7);
+	transform: translateY(calc(-100% - 16px));
+	transition: transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.xo-skip:focus-visible {
+	transform: none;
+	outline: 3px solid #ffffff;
+	outline-offset: -6px;
+}
+/* Safari still lags on :focus-visible for links reached by keyboard. */
+.xo-skip:focus {
+	transform: none;
+}
+
+/* The skip target itself is programmatically focused, so suppress the ring —
+   the page scroll is the visible feedback. */
+[data-skip-target]:focus {
+	outline: none;
+}
+
+/* =========================================================================
+   DESIGN TOKENS — lifted from the flyer (see docs/website-brief.md §4).
+
+   Contrast note: `--accent` is a FILL colour (white text on it clears 5.04:1).
+   Accent-coloured TEXT uses `--accent-ink` on light surfaces and
+   `--accent-on-dark` on navy; both are tuned to clear 4.5:1 against the worst
+   background each actually lands on, including the hero's radial glow.
+   Do not use `--accent-bright` for text — it is a gradient/graphic colour and
+   only reaches 3.75:1 against white.
+   ========================================================================= */
+.bt-page {
+	--bg: #eff2f7;
+	--tile: #ffffff;
+	--ink: #0b1622;
+	--navy: #0e2135;
+	--navy-2: #16304c;
+	--soft: #4a5765;
+	--faint: #626e80;
+	--line: rgba(14, 33, 53, 0.09);
+	--line-strong: rgba(14, 33, 53, 0.16);
+	--accent: #1c6fc9;
+	--accent-deep: #15558f;
+	--accent-bright: #2e86e0;
+	--accent-ink: #1866b8;
+	--accent-on-dark: #7cbcf5;
+
+	--display: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
+	--body: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+	--script: 'Yellowtail', 'Segoe Script', cursive;
+
+	--r: 20px;
+	--r-lg: 28px;
+	--r-sm: 14px;
+	--pill: 999px;
+	--gap: clamp(12px, 1.15vw, 16px);
+	--maxw: 1240px;
+	--rail: clamp(16px, 4vw, 40px);
+	--nav-h: 72px;
+	--ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+	font-family: var(--body);
+	font-size: 16px;
+	line-height: 1.6;
+	color: var(--ink);
+	background: var(--bg);
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Anchored sections must clear the fixed header when jumped to. */
+.bt-page [id] {
+	scroll-margin-top: calc(var(--nav-h) + 16px);
+}
+
+/* =========================================================================
+   SHARED TYPE PRIMITIVES
+   ========================================================================= */
+.bt-page .bt-eyebrow {
+	font-family: var(--body);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--accent-ink);
+	margin-bottom: 12px;
+}
+.bt-page .bt-eyebrow.bt-on-dark {
+	color: var(--accent-on-dark);
+}
+.bt-page .bt-title {
+	font-family: var(--display);
+	font-size: clamp(28px, 3.6vw, 46px);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.005em;
+	line-height: 1.06;
+	color: var(--navy);
+}
+.bt-page .bt-lead {
+	font-size: clamp(15px, 1.3vw, 17px);
+	line-height: 1.65;
+	color: var(--soft);
+	max-width: 58ch;
+	margin-top: 14px;
+}
+.bt-page .bt-head {
+	margin-bottom: clamp(20px, 2.4vw, 30px);
+}
+.bt-page .bt-head-center {
+	text-align: center;
+}
+.bt-page .bt-head-center .bt-lead {
+	margin-inline: auto;
+}
+/* the flyer's signature move: one phrase of a headline in accent blue. Only
+   ever used on the navy surfaces, hence the on-dark tint. */
+.bt-page .bt-accent-text {
+	color: var(--accent-on-dark);
+}
+.bt-page .bt-script {
+	font-family: var(--script);
+	font-weight: 400;
+	line-height: 1.25;
+	color: var(--navy);
+}
+
+/* =========================================================================
+   SHARED BUTTON PRIMITIVE
+   ========================================================================= */
+.bt-page .bt-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5em;
+	font-family: var(--display);
+	font-size: 15px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	padding: 12px 26px;
+	border-radius: var(--pill);
+	border: 1px solid transparent;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background-color 0.22s var(--ease),
+		border-color 0.22s var(--ease),
+		color 0.22s var(--ease),
+		transform 0.22s var(--ease);
+}
+.bt-page .bt-btn:active {
+	transform: scale(0.97);
+}
+.bt-page .bt-btn-sm {
+	font-size: 13.5px;
+	padding: 9px 18px;
+}
+.bt-page .bt-btn-primary {
+	background: var(--accent);
+	color: #fff;
+}
+.bt-page .bt-btn-primary:hover {
+	background: var(--accent-deep);
+}
+.bt-page .bt-btn-light {
+	background: #fff;
+	color: var(--navy);
+}
+.bt-page .bt-btn-light:hover {
+	background: rgba(255, 255, 255, 0.86);
+}
+.bt-page .bt-btn-blur {
+	background: rgba(255, 255, 255, 0.12);
+	color: #fff;
+	border-color: rgba(255, 255, 255, 0.4);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+.bt-page .bt-btn-blur:hover {
+	background: rgba(255, 255, 255, 0.22);
+}
+.bt-page .bt-btn-line {
+	background: transparent;
+	color: var(--navy);
+	border-color: var(--line-strong);
+}
+.bt-page .bt-btn-line:hover {
+	border-color: var(--navy);
+}
+
+/* =========================================================================
+   SHARED SURFACE PRIMITIVES
+   ========================================================================= */
+.bt-page .bt-tile {
+	position: relative;
+	background: var(--tile);
+	border: 1px solid var(--line);
+	border-radius: var(--r);
+	overflow: hidden;
+}
+.bt-page .bt-badge {
+	width: 46px;
+	height: 46px;
+	flex: none;
+	display: grid;
+	place-items: center;
+	border-radius: 50%;
+	background: var(--accent);
+	color: #fff;
+}
+.bt-page .bt-badge-soft {
+	background: rgba(28, 111, 201, 0.1);
+	color: var(--accent-ink);
+}
+
+/* Reveal-on-scroll, applied by the `reveal` action in src/lib/actions.js. */
+.bt-page .reveal {
+	opacity: 0;
+	transform: translateY(18px);
+	transition:
+		opacity 0.7s var(--ease),
+		transform 0.7s var(--ease);
+}
+.bt-page .reveal.in {
+	opacity: 1;
+	transform: none;
 }

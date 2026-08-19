@@ -1,6 +1,9 @@
 <script>
 	import { booking, closeBooking } from '$lib/booking.svelte.js';
 	import { BRAND, CONTACT, FORM_ENDPOINT, REASONS } from '$lib/content.js';
+	import { telHref } from '$lib/wp/client.js';
+	import { leadMessage, submitToWordPress, wordPressAvailable } from '$lib/wp/leads.js';
+	import { wpEdit } from '$lib/wp/wpEdit.svelte.js';
 	import Icon from './Icon.svelte';
 
 	let name = $state('');
@@ -10,12 +13,30 @@
 	let reason = $state(REASONS[0]);
 	let when = $state('');
 	let notes = $state('');
+	/** Honeypot. Real people never see this field, so anything in it is a bot. */
+	let company = $state('');
 	let errors = $state({});
 	let sending = $state(false);
 	let done = $state(false);
 	let dialog = $state(null);
+	/** The element that opened the dialog, so focus can go back to it. */
+	let opener = null;
+	/** Bumped on every failed submit so the alert re-announces each time. */
+	let attempts = $state(0);
+	/** 'wordpress' | 'endpoint' | 'mailto' — drives what the confirmation says. */
+	let deliveredBy = $state('');
+
+	/* Business details come from the content layer, so X.O. Admin drives them
+	   on WordPress and src/lib/content.js everywhere else. */
+	const brand = $derived(wpEdit.text('global_business_name', BRAND));
+	const bizPhone = $derived(wpEdit.text('global_contact_phone', CONTACT.phone));
+	const bizPhoneHref = $derived(telHref(bizPhone));
+	const bizEmail = $derived(wpEdit.text('global_contact_email', CONTACT.email));
 
 	const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+	/** Field order, so "the first problem" means the first one on screen. */
+	const FIELD_ORDER = ['name', 'phone', 'email', 'address'];
 
 	function validate() {
 		const e = {};
@@ -26,6 +47,19 @@
 		errors = e;
 		return Object.keys(e).length === 0;
 	}
+
+	/**
+	 * Error Identification (WCAG 3.3.1) needs the problem announced, not just
+	 * shown: the summary is a live region, and focus lands on the first field
+	 * that needs fixing so its label and message are read straight away.
+	 */
+	function reportErrors() {
+		attempts += 1;
+		const first = FIELD_ORDER.find((f) => errors[f]);
+		if (first) queueMicrotask(() => document.getElementById(`bk-${first}`)?.focus());
+	}
+
+	const errorCount = $derived(Object.keys(errors).length);
 
 	function payload() {
 		return {
@@ -42,63 +76,131 @@
 	/** No-backend fallback: open a pre-filled email to the business. */
 	function mailtoFallback() {
 		const d = payload();
-		const body = [
-			`Name: ${d.name}`,
-			`Email: ${d.email}`,
-			`Phone: ${d.phone}`,
-			`Property: ${d.property}`,
-			`Reason: ${d.reason}`,
-			`Preferred date: ${d.preferredDate}`,
-			'',
-			d.notes || '(no additional notes)'
-		].join('\n');
+		const body = [`Name: ${d.name}`, `Email: ${d.email}`, `Phone: ${d.phone}`, '', leadMessage(d)].join(
+			'\n'
+		);
 		window.location.href =
-			`mailto:${CONTACT.email}` +
+			`mailto:${bizEmail}` +
 			`?subject=${encodeURIComponent(`Inspection request — ${d.property}`)}` +
 			`&body=${encodeURIComponent(body)}`;
 	}
 
+	/**
+	 * Where a submission goes, in order of preference:
+	 *   WordPress   → /wp-json/xo/v1/lead: saved under Leads, emailed to the
+	 *                 address in X.O. Admin.
+	 *   FORM_ENDPOINT → a form service, for the static build.
+	 *   neither     → the visitor's mail client, pre-filled.
+	 * Any failure falls through to the next option rather than stranding someone
+	 * who has just typed out their details.
+	 */
 	async function submit(ev) {
 		ev.preventDefault();
-		if (!validate()) return;
+		if (!validate()) {
+			reportErrors();
+			return;
+		}
 		sending = true;
-		if (FORM_ENDPOINT) {
-			try {
-				await fetch(FORM_ENDPOINT, {
+		deliveredBy = '';
+
+		try {
+			if (wordPressAvailable()) {
+				const result = await submitToWordPress({ ...payload(), company });
+				if (!result.ok) throw new Error(result.message);
+				deliveredBy = 'wordpress';
+			} else if (FORM_ENDPOINT) {
+				const response = await fetch(FORM_ENDPOINT, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 					body: JSON.stringify(payload())
 				});
-			} catch {
-				// Network failure shouldn't strand the visitor — hand them the email route.
+				if (!response.ok) throw new Error('Form endpoint rejected the request.');
+				deliveredBy = 'endpoint';
+			} else {
 				mailtoFallback();
+				deliveredBy = 'mailto';
 			}
-		} else {
+		} catch {
 			mailtoFallback();
+			deliveredBy = 'mailto';
 		}
+
 		sending = false;
 		done = true;
 	}
 
 	function close() {
 		closeBooking();
+		// Return focus to whatever opened the dialog (WCAG 2.4.3). The stored
+		// element can be gone if the page re-rendered, hence the guard.
+		if (opener && document.contains(opener)) opener.focus();
+		opener = null;
 		setTimeout(() => {
 			done = false;
 			errors = {};
-			name = email = phone = address = notes = when = '';
+			name = email = phone = address = notes = when = company = '';
+			deliveredBy = '';
 			reason = REASONS[0];
 		}, 260);
 	}
 
 	// Focus the panel when it opens so keyboard and screen-reader users land inside it.
 	$effect(() => {
-		if (booking.open && dialog) dialog.focus();
+		if (!booking.open || !dialog) return;
+		opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		dialog.focus();
 	});
+
+	// A modal dialog owns the page while it is open: the document behind it must
+	// not scroll, and Tab must not walk out into it (WCAG 2.4.3).
+	$effect(() => {
+		if (!booking.open) return;
+		const { body } = document;
+		const previous = body.style.overflow;
+		body.style.overflow = 'hidden';
+		return () => {
+			body.style.overflow = previous;
+		};
+	});
+
+	const FOCUSABLE =
+		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+	/** Wrap Tab and Shift+Tab around the dialog's own controls. */
+	function trapFocus(/** @type {KeyboardEvent} */ event) {
+		if (event.key !== 'Tab' || !dialog) return;
+		const items = [...dialog.querySelectorAll(FOCUSABLE)].filter(
+			(el) => el.offsetParent !== null || el === document.activeElement
+		);
+		if (!items.length) return;
+		const first = items[0];
+		const last = items[items.length - 1];
+		const active = document.activeElement;
+
+		if (event.shiftKey && (active === first || active === dialog)) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && active === last) {
+			event.preventDefault();
+			first.focus();
+		}
+	}
+
+	/** @param {KeyboardEvent} event */
+	function onKeydown(event) {
+		if (!booking.open) return;
+		if (event.key === 'Escape') close();
+		else trapFocus(event);
+	}
 </script>
 
-<svelte:window onkeydown={(e) => booking.open && e.key === 'Escape' && close()} />
+<svelte:window onkeydown={onKeydown} />
 
 {#if booking.open}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- The backdrop is a pointer convenience, not a control: keyboard users
+	     dismiss with Escape (handled on window) or the labelled close button,
+	     so it stays out of the accessibility tree rather than posing as one. -->
 	<div class="bk-backdrop" onclick={close} role="presentation">
 		<div
 			class="bk-panel"
@@ -115,17 +217,17 @@
 
 			<div class="bk-inner">
 				{#if done}
-					<div class="bk-done">
+					<div class="bk-done" role="status" aria-live="polite">
 						<span class="bk-check"><Icon name="check" size={26} stroke={2.4} /></span>
 						<h2 id="bk-heading" class="bk-title">Request sent</h2>
 						<p class="bk-sub">
 							Thanks{name.trim() ? `, ${name.trim().split(' ')[0]}` : ''} — we have your details for
 							{address.trim() || 'your property'} and will be in touch to confirm a time.
 						</p>
-						{#if !FORM_ENDPOINT}
+						{#if deliveredBy === 'mailto'}
 							<p class="bk-note">
 								Your email client should have opened with the request ready to send. If it didn't,
-								call or text <a href={CONTACT.phoneHref}>{CONTACT.phone}</a> instead.
+								call or text <a href={bizPhoneHref}>{bizPhone}</a> instead.
 							</p>
 						{/if}
 						<button class="bk-btn bk-btn-primary" onclick={close}>Done</button>
@@ -135,30 +237,78 @@
 					<h2 id="bk-heading" class="bk-title">Book an Inspection</h2>
 					<p class="bk-sub">
 						Tell us about the property and we'll get back to you to confirm a time. Prefer to talk?
-						Call or text <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>.
+						Call or text <a href={bizPhoneHref}>{bizPhone}</a>.
 					</p>
 
-					<form onsubmit={submit} novalidate>
+					<!-- Live region for the validation summary. It stays in the DOM so
+					     assistive tech is already watching it when it fills. -->
+					<div class="bk-summary-live" role="alert">
+						{#if errorCount}
+							{#key attempts}
+								<p class="bk-summary">
+									{errorCount === 1
+										? 'One detail needs fixing before we can send this.'
+										: `${errorCount} details need fixing before we can send this.`}
+								</p>
+							{/key}
+						{/if}
+					</div>
+
+					<form onsubmit={submit} novalidate aria-busy={sending}>
 						<div class="bk-grid">
 							<div class="bk-field" class:invalid={errors.name}>
 								<label for="bk-name">Your name</label>
-								<input id="bk-name" bind:value={name} autocomplete="name" />
-								<span class="bk-err">{errors.name ?? ''}</span>
+								<input
+									id="bk-name"
+									bind:value={name}
+									autocomplete="name"
+									required
+									aria-required="true"
+									aria-invalid={errors.name ? 'true' : undefined}
+									aria-describedby={errors.name ? 'bk-name-err' : undefined}
+								/>
+								<span class="bk-err" id="bk-name-err">{errors.name ?? ''}</span>
 							</div>
 							<div class="bk-field" class:invalid={errors.phone}>
 								<label for="bk-phone">Phone</label>
-								<input id="bk-phone" type="tel" bind:value={phone} autocomplete="tel" />
-								<span class="bk-err">{errors.phone ?? ''}</span>
+								<input
+									id="bk-phone"
+									type="tel"
+									bind:value={phone}
+									autocomplete="tel"
+									required
+									aria-required="true"
+									aria-invalid={errors.phone ? 'true' : undefined}
+									aria-describedby={errors.phone ? 'bk-phone-err' : undefined}
+								/>
+								<span class="bk-err" id="bk-phone-err">{errors.phone ?? ''}</span>
 							</div>
 							<div class="bk-field full" class:invalid={errors.email}>
 								<label for="bk-email">Email</label>
-								<input id="bk-email" type="email" bind:value={email} autocomplete="email" />
-								<span class="bk-err">{errors.email ?? ''}</span>
+								<input
+									id="bk-email"
+									type="email"
+									bind:value={email}
+									autocomplete="email"
+									required
+									aria-required="true"
+									aria-invalid={errors.email ? 'true' : undefined}
+									aria-describedby={errors.email ? 'bk-email-err' : undefined}
+								/>
+								<span class="bk-err" id="bk-email-err">{errors.email ?? ''}</span>
 							</div>
 							<div class="bk-field full" class:invalid={errors.address}>
 								<label for="bk-address">Property address</label>
-								<input id="bk-address" bind:value={address} autocomplete="street-address" />
-								<span class="bk-err">{errors.address ?? ''}</span>
+								<input
+									id="bk-address"
+									bind:value={address}
+									autocomplete="street-address"
+									required
+									aria-required="true"
+									aria-invalid={errors.address ? 'true' : undefined}
+									aria-describedby={errors.address ? 'bk-address-err' : undefined}
+								/>
+								<span class="bk-err" id="bk-address-err">{errors.address ?? ''}</span>
 							</div>
 							<div class="bk-field">
 								<label for="bk-reason">What's prompting the inspection?</label>
@@ -184,11 +334,19 @@
 							</div>
 						</div>
 
+						<!-- Honeypot: off-screen, out of the tab order, hidden from screen
+						     readers. Only bots fill it in; the server accepts and discards
+						     those submissions so they get no signal from the difference. -->
+						<div class="bk-hp" aria-hidden="true">
+							<label for="bk-company">Company</label>
+							<input id="bk-company" bind:value={company} tabindex="-1" autocomplete="off" />
+						</div>
+
 						<button type="submit" class="bk-btn bk-btn-primary bk-submit" disabled={sending}>
 							{sending ? 'Sending…' : 'Request My Inspection'}
 						</button>
 						<p class="bk-note">
-							{BRAND} will only use these details to respond to your request.
+							{brand} will only use these details to respond to your request.
 						</p>
 					</form>
 				{/if}
@@ -240,8 +398,8 @@
 		top: 14px;
 		right: 14px;
 		z-index: 2;
-		width: 38px;
-		height: 38px;
+		width: 44px;
+		height: 44px;
 		display: grid;
 		place-items: center;
 		border-radius: 50%;
@@ -308,7 +466,8 @@
 	}
 	.bk-opt {
 		font-weight: 400;
-		color: #7b8798;
+		/* was #7b8798 — 3.65:1 on white, short of the 4.5:1 body text needs */
+		color: #626e80;
 	}
 	.bk-field input,
 	.bk-field select,
@@ -337,11 +496,36 @@
 		border-color: #1c6fc9;
 		box-shadow: 0 0 0 3px rgba(28, 111, 201, 0.16);
 	}
-	.bk-field.invalid input,
-	.bk-field.invalid select {
+	.bk-field.invalid input {
 		border-color: #c0392b;
 		background: #fdf5f4;
 	}
+	.bk-hp {
+		position: absolute;
+		left: -9999px;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+	}
+
+	.bk-summary-live:empty {
+		display: none;
+	}
+	.bk-summary {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 18px;
+		padding: 11px 14px;
+		border: 1px solid rgba(192, 57, 43, 0.35);
+		border-left: 3px solid #c0392b;
+		border-radius: 12px;
+		background: #fdf5f4;
+		font-size: 13px;
+		font-weight: 600;
+		color: #96271b;
+	}
+
 	.bk-err {
 		display: block;
 		min-height: 17px;
@@ -389,7 +573,7 @@
 	.bk-note {
 		font-size: 12px;
 		line-height: 1.5;
-		color: #7b8798;
+		color: #626e80;
 		margin-top: 14px;
 		text-align: center;
 	}
